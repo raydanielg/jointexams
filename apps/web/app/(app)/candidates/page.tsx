@@ -122,14 +122,14 @@ export default function CandidatesPage() {
     setBulkBusy(true)
     setBulkMsg(null)
     try {
-      const res = await api.post<{ deleted: number; skipped: string[] }>(
+      const res = await api.post<{ deleted: number; kept: string[] }>(
         "/candidates/bulk-delete/",
         { ids: [...picked] }
       )
-      const skipped = res.data?.skipped ?? []
+      const kept = res.data?.kept ?? []
       setBulkMsg(
-        skipped.length
-          ? `${skipped.length} skipped (enrolled in exams): ${skipped.slice(0, 3).join(", ")}${skipped.length > 3 ? "…" : ""}`
+        kept.length
+          ? `${kept.length} kept for their exam enrollments (removed from lists only): ${kept.slice(0, 3).join(", ")}${kept.length > 3 ? "…" : ""}`
           : null
       )
       setPicked(new Set())
