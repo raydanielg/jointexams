@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { ArrowLeft01Icon, Download01Icon, Refresh01Icon } from "@hugeicons/core-free-icons"
+import { ArrowLeft01Icon, Download01Icon, PrinterIcon, Refresh01Icon } from "@hugeicons/core-free-icons"
 
 import { api, errorMessage } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
@@ -175,6 +175,15 @@ export default function CandidateListPreviewPage() {
                 />
               </Sheet>
             </PermissionGate>
+            <Button
+              variant="outline"
+              size="lg"
+              nativeButton={false}
+              render={<Link href={`/candidate-lists/${params.id}/checklist`} />}
+            >
+              <HugeiconsIcon icon={PrinterIcon} strokeWidth={2} className="me-2 size-4" />
+              Checklist
+            </Button>
             <Button
               size="lg"
               nativeButton={false}
