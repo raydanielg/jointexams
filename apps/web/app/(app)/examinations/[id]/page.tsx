@@ -362,6 +362,9 @@ function CandidatesTab({ exam, canManage }: { exam: ExamDetail; canManage: boole
   const [lists, setLists] = useState<CandidateList[]>([])
   const [picked, setPicked] = useState<string[]>([])
   const [open, setOpen] = useState(false)
+  const [unlist, setUnlist] = useState("")
+  const [unBusy, setUnBusy] = useState(false)
+  const [unMsg, setUnMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -392,6 +395,25 @@ function CandidatesTab({ exam, canManage }: { exam: ExamDetail; canManage: boole
     }
   }
 
+  async function unenrollList() {
+    if (!unlist) return
+    setUnBusy(true)
+    setUnMsg(null)
+    try {
+      const res = await api.post("/enrollments/unenroll-list/", {
+        examination: exam.id,
+        list_id: unlist,
+      })
+      setUnMsg(res.message ?? "List unenrolled.")
+      setUnlist("")
+      await load()
+    } catch (err) {
+      setUnMsg(errorMessage(err, "Could not unenroll the list."))
+    } finally {
+      setUnBusy(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -399,6 +421,34 @@ function CandidatesTab({ exam, canManage }: { exam: ExamDetail; canManage: boole
           <CardTitle className="text-base">Enrolled candidates</CardTitle>
           <CardDescription>Candidates sitting this examination.</CardDescription>
         </div>
+        {canManage ? (
+          <div className="flex items-center gap-2">
+            <Select
+              value={unlist}
+              onValueChange={(v) => setUnlist(v ?? "")}
+              items={lists.map((l) => ({ value: l.id, label: l.name }))}
+            >
+              <SelectTrigger className="w-44" size="sm">
+                <SelectValue placeholder="Unenroll list…" />
+              </SelectTrigger>
+              <SelectContent>
+                {lists.map((l) => (
+                  <SelectItem key={l.id} value={l.id} label={l.name}>
+                    {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={!unlist || unBusy}
+              onClick={() => void unenrollList()}
+            >
+              {unBusy ? "Removing…" : "Unenroll"}
+            </Button>
+          </div>
+        ) : null}
         {canManage && exam.status === "DRAFT" ? (
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger render={<Button size="sm" />}>
@@ -440,6 +490,7 @@ function CandidatesTab({ exam, canManage }: { exam: ExamDetail; canManage: boole
       </CardHeader>
       <CardContent>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {unMsg ? <p className="mb-2 text-sm text-amber-700">{unMsg}</p> : null}
         {!rows ? (
           <Skeleton className="h-32 w-full" />
         ) : rows.length === 0 ? (
