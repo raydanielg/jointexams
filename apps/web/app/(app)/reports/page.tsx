@@ -9,6 +9,7 @@ import { P } from "@/lib/permissions"
 import { ModulePage } from "@/components/module-page"
 import { PermissionGate } from "@/components/guards"
 import { paged, type ExamRow } from "@/lib/helpers"
+import { GradeDistribution } from "@/components/grade-distribution"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -160,6 +161,7 @@ export default function ReportsPage() {
       }
     >
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <GradeDistribution exams={exams ?? []} />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Generated reports</CardTitle>
