@@ -73,6 +73,8 @@ interface Candidate {
 
 export default function CandidatesPage() {
   const [rows, setRows] = useState<Candidate[] | null>(null)
+  const [page, setPage] = useState(1)
+  const [meta, setMeta] = useState<{ count: number; total_pages: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -80,13 +82,16 @@ export default function CandidatesPage() {
 
   const load = useCallback(async () => {
     try {
-      const qs = schoolFilter ? `?school=${schoolFilter}` : ""
-      const res = await api.get(`/candidates/${qs}`)
+      const params = new URLSearchParams({ page: String(page), page_size: "25" })
+      if (schoolFilter) params.set("school", schoolFilter)
+      const res = await api.get(`/candidates/?${params}`)
       setRows(paged<Candidate>(res.data))
+      const d = res.data as { count?: number; total_pages?: number }
+      setMeta({ count: d?.count ?? 0, total_pages: d?.total_pages ?? 1 })
     } catch (err) {
       setError(errorMessage(err))
     }
-  }, [schoolFilter])
+  }, [page, schoolFilter])
 
   useEffect(() => {
     void load()
@@ -109,7 +114,7 @@ export default function CandidatesPage() {
       actions={
         <>
           <PermissionGate permission={P.candidatesView}>
-            <SchoolFilter value={schoolFilter} onChange={setSchoolFilter} />
+            <SchoolFilter value={schoolFilter} onChange={(v) => { setSchoolFilter(v); setPage(1) }} />
           </PermissionGate>
           <PermissionGate permission={P.candidatesCreate}>
             <Button variant="outline" nativeButton={false} render={<Link href="/candidate-lists" />}>
@@ -214,6 +219,31 @@ export default function CandidatesPage() {
               </TableBody>
             </Table>
           )}
+          {meta && meta.total_pages > 1 ? (
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Page {page} of {meta.total_pages} · {meta.count} candidates
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= meta.total_pages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </ModulePage>
