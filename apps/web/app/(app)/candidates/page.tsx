@@ -382,7 +382,7 @@ function BulkUploadDrawer({ onDone }: { onDone: () => void }) {
   }, [schools, school])
 
   async function downloadTemplate() {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1"
+    const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1").replace(/\/+$/, "")
     const res = await fetch(`${base}/imports/template/?type=CANDIDATES`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("emas_access")}` },
     })

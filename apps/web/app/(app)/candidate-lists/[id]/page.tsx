@@ -68,7 +68,7 @@ interface ListCandidate {
 const ALL = "__all__"
 
 async function fetchPdf(id: string, schoolId: string, order: string): Promise<string> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1"
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1").replace(/\/+$/, "")
   const res = await fetch(
     `${base}/candidate-lists/${id}/pdf/?` +
       `${schoolId ? `school=${schoolId}&` : ""}order=${order}`,

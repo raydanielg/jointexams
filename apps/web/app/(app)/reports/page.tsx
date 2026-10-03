@@ -117,7 +117,7 @@ export default function ReportsPage() {
       setError(errorMessage(err))
     }
     try {
-      const base = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1"
+      const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1").replace(/\/+$/, "")
       const r = await fetch(`${base}/reports/${job.id}/download/`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("emas_access")}`,
