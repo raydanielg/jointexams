@@ -35,6 +35,10 @@ export default function ChecklistPage() {
   const [error, setError] = useState<string | null>(null)
 
   const schoolId = schoolFilter === ALL ? "" : schoolFilter
+  const schoolName =
+    schools.find((s) => s.school_id === schoolId)?.school_name ?? ""
+  const slug = (t: string) =>
+    t.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
 
   useEffect(() => {
     api
@@ -87,7 +91,7 @@ export default function ChecklistPage() {
     if (!pdfUrl) return
     const a = document.createElement("a")
     a.href = pdfUrl
-    a.download = `${listName || "checklist"}.pdf`
+    a.download = `${listName || "checklist"}-checklist${schoolName ? `-${slug(schoolName)}` : ""}.pdf`
     a.click()
   }
 
