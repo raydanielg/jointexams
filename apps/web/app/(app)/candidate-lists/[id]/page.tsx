@@ -95,17 +95,31 @@ export default function CandidateListPreviewPage() {
 
   const load = useCallback(async () => {
     try {
-      const [l, c] = await Promise.all([
+      const [l, first] = await Promise.all([
         api.get<ListDetail>(`/candidate-lists/${params.id}/`),
         api.get(
-          `/candidate-lists/${params.id}/candidates/?page_size=500` +
-            `${schoolId ? `&school=${schoolId}` : ""}` +
-            `${search ? `&search=${encodeURIComponent(search)}` : ""}`
+          `/candidate-lists/${params.id}/candidates/?page_size=200` +
+            `${schoolId ? `&school_id=${schoolId}` : ""}` +
+            `${search ? `&q=${encodeURIComponent(search)}` : ""}`
         ),
       ])
       setList(l.data!)
-      const data = c.data as { results?: ListCandidate[] } | ListCandidate[]
-      setRows(Array.isArray(data) ? data : (data.results ?? []))
+      const data = first.data as
+        | { results?: ListCandidate[]; next?: string | null }
+        | ListCandidate[]
+      const rows: ListCandidate[] = Array.isArray(data)
+        ? [...data]
+        : [...(data.results ?? [])]
+      const toPath = (url: string) =>
+        url.includes("/api/v1/") ? url.split("/api/v1/")[1]!.replace(/^/, "/") : url
+      let next = Array.isArray(data) ? null : (data.next ?? null)
+      while (next) {
+        const more = await api.get(toPath(next))
+        const md = more.data as { results?: ListCandidate[]; next?: string | null }
+        rows.push(...(md.results ?? []))
+        next = md.next ?? null
+      }
+      setRows(rows)
     } catch (err) {
       setError(errorMessage(err, "Could not load the list."))
     }

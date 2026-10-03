@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { api, errorMessage } from "@/lib/api"
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1"
+).replace(/\/+$/, "")
 import { paged, type ExamRow } from "@/lib/helpers"
 import { Badge } from "@workspace/ui/components/badge"
 import {
@@ -51,6 +54,33 @@ export function GradeDistribution({ exams }: { exams: ExamRow[] }) {
   const [data, setData] = useState<DistData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPdf, setShowPdf] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
+
+  const loadPdf = useCallback(async (id: string) => {
+    setPdfBusy(true)
+    try {
+      const res = await fetch(
+        `${API_BASE}/reports/distribution-pdf/?examination=${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("emas_access")}`,
+          },
+        }
+      )
+      if (!res.ok) throw new Error(`${res.status}`)
+      const blob = await res.blob()
+      setPdfUrl((old) => {
+        if (old) URL.revokeObjectURL(old)
+        return URL.createObjectURL(blob)
+      })
+    } catch {
+      setPdfUrl(null)
+    } finally {
+      setPdfBusy(false)
+    }
+  }, [])
 
   const load = useCallback(async (id: string) => {
     if (!id) {
@@ -88,6 +118,30 @@ export function GradeDistribution({ exams }: { exams: ExamRow[] }) {
             A → F per school — plus candidates who did not sit (ABSENT).
           </CardDescription>
         </div>
+        <div className="flex items-center gap-2">
+        {examId ? (
+          <button
+            type="button"
+            disabled={pdfBusy}
+            onClick={() => {
+              const next = !showPdf
+              setShowPdf(next)
+              if (next) void loadPdf(examId)
+            }}
+            className="h-9 rounded-md border px-3 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+          >
+            {pdfBusy ? "Loading…" : showPdf ? "Hide PDF" : "PDF preview"}
+          </button>
+        ) : null}
+        {pdfUrl && showPdf ? (
+          <a
+            href={pdfUrl}
+            download="grade-distribution.pdf"
+            className="h-9 rounded-md border px-3 text-xs font-medium leading-9 hover:bg-slate-50"
+          >
+            Download
+          </a>
+        ) : null}
         <Select
           value={examId}
           onValueChange={(v) => setExamId(v ?? "")}
@@ -104,6 +158,7 @@ export function GradeDistribution({ exams }: { exams: ExamRow[] }) {
             ))}
           </SelectContent>
         </Select>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -169,6 +224,29 @@ export function GradeDistribution({ exams }: { exams: ExamRow[] }) {
                 </p>
               ) : null}
             </div>
+
+            {/* PDF preview */}
+            {showPdf ? (
+              <div className="overflow-hidden rounded-md border bg-slate-100">
+                {pdfUrl ? (
+                  <object
+                    data={pdfUrl}
+                    type="application/pdf"
+                    className="h-[70vh] w-full"
+                  >
+                    <p className="p-4 text-sm">
+                      PDF preview is not supported in this browser —{" "}
+                      <a href={pdfUrl} download="grade-distribution.pdf" className="underline">
+                        download it instead
+                      </a>
+                      .
+                    </p>
+                  </object>
+                ) : (
+                  <Skeleton className="h-[40vh] w-full" />
+                )}
+              </div>
+            ) : null}
 
             {/* Count table */}
             {data.by_school.length ? (
