@@ -9,7 +9,7 @@ import { api, errorMessage } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { P } from "@/lib/permissions"
 import { ModulePage } from "@/components/module-page"
-import { OrgFilter, OrgSelect } from "@/components/org-select"
+import { OrgFilter } from "@/components/org-select"
 import { paged, STATUS_VARIANT, type ExamRow } from "@/lib/helpers"
 import {
   DEFAULT_BANDS,
@@ -285,8 +285,6 @@ function CreateExamDialog({ onDone }: { onDone: () => void }) {
         </SheetDescription>
       </SheetHeader>
       <form onSubmit={submit} className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6">
-        <OrgSelect />
-
         <div className="grid gap-2">
           <Label htmlFor="name">Name</Label>
           <Input id="name" name="name" placeholder="e.g. Mock Examination 2026" required />
