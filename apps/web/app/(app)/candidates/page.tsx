@@ -168,6 +168,7 @@ export default function CandidatesPage() {
                 <TableRow>
                   <TableHead>Number</TableHead>
                   <TableHead>Candidate</TableHead>
+                  <TableHead>Gender</TableHead>
                   <TableHead>School</TableHead>
                   <TableHead>Guardian phone</TableHead>
                   <TableHead>Status</TableHead>
@@ -179,6 +180,9 @@ export default function CandidatesPage() {
                   <TableRow key={c.id}>
                     <TableCell className="text-muted-foreground">{c.candidate_number}</TableCell>
                     <TableCell className="font-medium">{c.full_name}</TableCell>
+                    <TableCell className="text-muted-foreground capitalize">
+                      {c.gender && c.gender !== "UNSPECIFIED" ? c.gender.toLowerCase() : "—"}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{c.school_name || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{c.guardian_phone || "—"}</TableCell>
                     <TableCell><Badge variant="outline">{c.status}</Badge></TableCell>
