@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Add01Icon, ArrowLeft01Icon, Download01Icon, PrinterIcon, Refresh01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, ArrowLeft01Icon, Delete02Icon, Download01Icon, PrinterIcon, Refresh01Icon } from "@hugeicons/core-free-icons"
 
 import { api, errorMessage } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
@@ -90,6 +90,8 @@ export default function CandidateListPreviewPage() {
   const [sort, setSort] = useState("number_asc")
   const [genOpen, setGenOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [removing, setRemoving] = useState(false)
   const [savingNum, setSavingNum] = useState<string | null>(null)
 
   const schoolId = schoolFilter === ALL ? "" : schoolFilter
@@ -143,6 +145,30 @@ export default function CandidateListPreviewPage() {
       setError(errorMessage(err, "Could not update the number."))
     } finally {
       setSavingNum(null)
+    }
+  }
+
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  async function removePicked() {
+    if (!picked.size) return
+    setRemoving(true)
+    try {
+      await api.post(`/candidate-lists/${params.id}/remove-candidates/`, {
+        candidate_ids: [...picked],
+      })
+      setPicked(new Set())
+      await load()
+    } catch (err) {
+      setError(errorMessage(err, "Could not remove the candidates."))
+    } finally {
+      setRemoving(false)
     }
   }
 
@@ -293,9 +319,46 @@ export default function CandidateListPreviewPage() {
             ) : sortedRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">No candidates match.</p>
             ) : (
+              <>
+              {picked.size > 0 ? (
+                <div className="flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                  <span className="text-sm font-medium text-red-800">
+                    {picked.size} selected
+                  </span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setPicked(new Set())}>
+                      Clear
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={removing}
+                      onClick={() => void removePicked()}
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} className="me-1.5 size-4" />
+                      {removing ? "Removing…" : "Remove from list"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        className="size-4 cursor-pointer accent-slate-800"
+                        checked={picked.size > 0 && picked.size === sortedRows.length}
+                        onChange={(e) =>
+                          setPicked(
+                            e.target.checked
+                              ? new Set(sortedRows.map((c) => c.id))
+                              : new Set()
+                          )
+                        }
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead>Number</TableHead>
                     <TableHead>Candidate</TableHead>
                     <TableHead>Organization</TableHead>
@@ -303,7 +366,16 @@ export default function CandidateListPreviewPage() {
                 </TableHeader>
                 <TableBody>
                   {sortedRows.map((c) => (
-                    <TableRow key={c.id}>
+                    <TableRow key={c.id} className={picked.has(c.id) ? "bg-red-50/60" : undefined}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="size-4 cursor-pointer accent-slate-800"
+                          checked={picked.has(c.id)}
+                          onChange={() => togglePick(c.id)}
+                          aria-label={`Select ${c.full_name}`}
+                        />
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         <NumberCell
                           value={c.candidate_number}
@@ -317,6 +389,7 @@ export default function CandidateListPreviewPage() {
                   ))}
                 </TableBody>
               </Table>
+              </>
             )}
           </CardContent>
         </Card>
