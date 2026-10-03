@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { ArrowLeft01Icon, Download01Icon, PrinterIcon, Refresh01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, ArrowLeft01Icon, Download01Icon, PrinterIcon, Refresh01Icon } from "@hugeicons/core-free-icons"
 
 import { api, errorMessage } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
@@ -89,6 +89,7 @@ export default function CandidateListPreviewPage() {
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState("number_asc")
   const [genOpen, setGenOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [savingNum, setSavingNum] = useState<string | null>(null)
 
   const schoolId = schoolFilter === ALL ? "" : schoolFilter
@@ -171,6 +172,21 @@ export default function CandidateListPreviewPage() {
           </div>
           <div className="flex gap-2">
             <PermissionGate permission={P.candidatesUpdate}>
+              <Sheet open={addOpen} onOpenChange={setAddOpen}>
+                <Button variant="outline" size="lg" onClick={() => setAddOpen(true)}>
+                  <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="me-2 size-4" />
+                  Add candidate
+                </Button>
+                <NewCandidateDrawer
+                  listId={params.id}
+                  defaultSchool={schoolId}
+                  schools={schools}
+                  onDone={() => {
+                    setAddOpen(false)
+                    void load()
+                  }}
+                />
+              </Sheet>
               <Sheet open={genOpen} onOpenChange={setGenOpen}>
                 <Button variant="outline" size="lg" onClick={() => setGenOpen(true)}>
                   <HugeiconsIcon icon={Refresh01Icon} strokeWidth={2} className="me-2 size-4" />
@@ -486,6 +502,119 @@ function GenerateNumbersDrawer({
           {busy ? "Generating…" : "Generate numbers"}
         </Button>
       </SheetFooter>
+    </SheetContent>
+  )
+}
+
+function NewCandidateDrawer({
+  listId, defaultSchool, schools, onDone,
+}: {
+  listId: string
+  defaultSchool: string
+  schools: { school_id: string; school_name: string }[]
+  onDone: () => void
+}) {
+  const [first, setFirst] = useState("")
+  const [middle, setMiddle] = useState("")
+  const [last, setLast] = useState("")
+  const [gender, setGender] = useState("")
+  const [phone, setPhone] = useState("")
+  const [school, setSchool] = useState(defaultSchool || schools[0]?.school_id || "")
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  async function save() {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const res = await api.post<{ id: string }>("/candidates/", {
+        first_name: first.trim(),
+        middle_name: middle.trim() || null,
+        last_name: last.trim(),
+        gender: gender || null,
+        phone: phone.trim() || null,
+        school,
+      })
+      await api.post(`/candidate-lists/${listId}/add-candidates/`, {
+        candidate_ids: [res.data!.id],
+      })
+      onDone()
+    } catch (err) {
+      setMsg(errorMessage(err, "Could not add the candidate."))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+      <SheetHeader>
+        <SheetTitle>Add candidate</SheetTitle>
+        <SheetDescription>
+          Creates the candidate and adds them to this list — numbered
+          automatically after the current sequence.
+        </SheetDescription>
+      </SheetHeader>
+      <div className="flex flex-col gap-4 p-4 pt-2">
+        <div className="grid gap-2">
+          <Label htmlFor="nc-first">First name</Label>
+          <Input id="nc-first" value={first} onChange={(e) => setFirst(e.target.value)} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="nc-middle">Middle name (optional)</Label>
+          <Input id="nc-middle" value={middle} onChange={(e) => setMiddle(e.target.value)} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="nc-last">Last name</Label>
+          <Input id="nc-last" value={last} onChange={(e) => setLast(e.target.value)} />
+        </div>
+        <div className="grid gap-2">
+          <Label>Gender</Label>
+          <Select
+            value={gender}
+            onValueChange={(v) => setGender(v ?? "")}
+            items={[
+              { value: "male", label: "Male" },
+              { value: "female", label: "Female" },
+            ]}
+          >
+            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male" label="Male">Male</SelectItem>
+              <SelectItem value="female" label="Female">Female</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="nc-phone">Phone (optional)</Label>
+          <Input id="nc-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div className="grid gap-2">
+          <Label>Organization</Label>
+          <Select
+            value={school}
+            onValueChange={(v) => setSchool(v ?? "")}
+            items={schools.map((s) => ({ value: s.school_id, label: s.school_name }))}
+          >
+            <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+            <SelectContent>
+              {schools.map((s) => (
+                <SelectItem key={s.school_id} value={s.school_id} label={s.school_name}>
+                  {s.school_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {msg ? <p className="text-sm text-destructive">{msg}</p> : null}
+        <Button
+          size="lg"
+          disabled={busy || !first.trim() || !last.trim() || !school}
+          onClick={() => void save()}
+        >
+          {busy ? "Saving…" : "Save candidate"}
+        </Button>
+      </div>
     </SheetContent>
   )
 }
