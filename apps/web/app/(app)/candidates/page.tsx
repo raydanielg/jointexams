@@ -79,6 +79,9 @@ export default function CandidatesPage() {
   const [open, setOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [schoolFilter, setSchoolFilter] = useState("")
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -103,6 +106,38 @@ export default function CandidatesPage() {
       await load()
     } catch (err) {
       setError(errorMessage(err))
+    }
+  }
+
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  async function removePicked() {
+    if (!picked.size) return
+    setBulkBusy(true)
+    setBulkMsg(null)
+    try {
+      const res = await api.post<{ deleted: number; skipped: string[] }>(
+        "/candidates/bulk-delete/",
+        { ids: [...picked] }
+      )
+      const skipped = res.data?.skipped ?? []
+      setBulkMsg(
+        skipped.length
+          ? `${skipped.length} skipped (enrolled in exams): ${skipped.slice(0, 3).join(", ")}${skipped.length > 3 ? "…" : ""}`
+          : null
+      )
+      setPicked(new Set())
+      await load()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBulkBusy(false)
     }
   }
 
@@ -168,9 +203,47 @@ export default function CandidatesPage() {
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No candidates yet.</p>
           ) : (
+            <div className="flex flex-col gap-3">
+            {bulkMsg ? <p className="text-sm text-amber-700">{bulkMsg}</p> : null}
+            {picked.size > 0 ? (
+              <div className="flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                <span className="text-sm font-medium text-red-800">
+                  {picked.size} selected
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setPicked(new Set())}>
+                    Clear
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={bulkBusy}
+                    onClick={() => void removePicked()}
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} className="me-1.5 size-4" />
+                    {bulkBusy ? "Deleting…" : "Delete candidates"}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      className="size-4 cursor-pointer accent-slate-800"
+                      checked={picked.size > 0 && picked.size === rows.length}
+                      onChange={(e) =>
+                        setPicked(
+                          e.target.checked
+                            ? new Set(rows.map((c) => c.id))
+                            : new Set()
+                        )
+                      }
+                      aria-label="Select all"
+                    />
+                  </TableHead>
                   <TableHead>Number</TableHead>
                   <TableHead>Candidate</TableHead>
                   <TableHead>Gender</TableHead>
@@ -182,7 +255,16 @@ export default function CandidatesPage() {
               </TableHeader>
               <TableBody>
                 {rows.map((c) => (
-                  <TableRow key={c.id}>
+                  <TableRow key={c.id} className={picked.has(c.id) ? "bg-red-50/60" : undefined}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        className="size-4 cursor-pointer accent-slate-800"
+                        checked={picked.has(c.id)}
+                        onChange={() => togglePick(c.id)}
+                        aria-label={`Select ${c.full_name}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{c.candidate_number}</TableCell>
                     <TableCell className="font-medium">{c.full_name}</TableCell>
                     <TableCell className="text-muted-foreground capitalize">
@@ -218,6 +300,7 @@ export default function CandidatesPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
           {meta && meta.total_pages > 1 ? (
             <div className="mt-4 flex items-center justify-between">
