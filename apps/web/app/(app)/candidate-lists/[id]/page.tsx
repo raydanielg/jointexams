@@ -347,6 +347,7 @@ function GenerateNumbersDrawer({
   const [prefix, setPrefix] = useState("JNT")
   const [year, setYear] = useState(cohort || String(new Date().getFullYear()))
   const [mode, setMode] = useState(schoolId ? "per_school" : "combined")
+  const [start, setStart] = useState("")
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -361,6 +362,7 @@ function GenerateNumbersDrawer({
           year: year.trim(),
           mode,
           order: sort,
+          ...(start ? { start: Number(start) } : {}),
           ...(schoolId ? { school: schoolId } : {}),
         }
       )
@@ -395,6 +397,21 @@ function GenerateNumbersDrawer({
             onChange={(e) => setPrefix(e.target.value.toUpperCase())}
             placeholder="JNT"
           />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="start">Start from number</Label>
+          <Input
+            id="start"
+            type="number"
+            min={1}
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+            placeholder="1"
+          />
+          <p className="text-xs text-muted-foreground">
+            First number in the sequence — leave empty to continue from the
+            highest existing number.
+          </p>
         </div>
         <div className="grid gap-2">
           <Label htmlFor="year">Year</Label>
