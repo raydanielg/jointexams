@@ -79,22 +79,44 @@ export default function CandidatesPage() {
   const [open, setOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [schoolFilter, setSchoolFilter] = useState("")
+  const [pageSize, setPageSize] = useState("25")
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkMsg, setBulkMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ page: String(page), page_size: "25" })
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: pageSize === "all" ? "200" : pageSize,
+      })
       if (schoolFilter) params.set("school", schoolFilter)
       const res = await api.get(`/candidates/?${params}`)
-      setRows(paged<Candidate>(res.data))
-      const d = res.data as { count?: number; total_pages?: number }
-      setMeta({ count: d?.count ?? 0, total_pages: d?.total_pages ?? 1 })
+      const data = res.data as
+        | { results?: Candidate[]; next?: string | null; count?: number; total_pages?: number }
+        | Candidate[]
+      const all: Candidate[] = Array.isArray(data)
+        ? [...data]
+        : [...(data.results ?? [])]
+      // "All" fetches every remaining page
+      let next = pageSize === "all" && !Array.isArray(data) ? (data.next ?? null) : null
+      while (next) {
+        const path = next.includes("/api/v1/") ? `/${next.split("/api/v1/")[1]}` : next
+        const more = await api.get(path)
+        const md = more.data as { results?: Candidate[]; next?: string | null }
+        all.push(...(md.results ?? []))
+        next = md.next ?? null
+      }
+      setRows(all)
+      const d = Array.isArray(data) ? {} : data
+      setMeta({
+        count: pageSize === "all" ? all.length : (d.count ?? 0),
+        total_pages: pageSize === "all" ? 1 : (d.total_pages ?? 1),
+      })
     } catch (err) {
       setError(errorMessage(err))
     }
-  }, [page, schoolFilter])
+  }, [page, schoolFilter, pageSize])
 
   useEffect(() => {
     void load()
@@ -302,12 +324,38 @@ export default function CandidatesPage() {
             </Table>
             </div>
           )}
-          {meta && meta.total_pages > 1 ? (
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                Page {page} of {meta.total_pages} · {meta.count} candidates
-              </p>
-              <div className="flex gap-2">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Show</span>
+              <Select
+                value={pageSize}
+                onValueChange={(v) => {
+                  setPageSize(v ?? "25")
+                  setPage(1)
+                }}
+                items={[
+                  { value: "10", label: "10" },
+                  { value: "25", label: "25" },
+                  { value: "50", label: "50" },
+                  { value: "100", label: "100" },
+                  { value: "all", label: "All" },
+                ]}
+              >
+                <SelectTrigger className="w-20" size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10" label="10">10</SelectItem>
+                  <SelectItem value="25" label="25">25</SelectItem>
+                  <SelectItem value="50" label="50">50</SelectItem>
+                  <SelectItem value="100" label="100">100</SelectItem>
+                  <SelectItem value="all" label="All">All</SelectItem>
+                </SelectContent>
+              </Select>
+              <span>of {meta?.count ?? 0} candidates</span>
+            </div>
+            {meta && meta.total_pages > 1 ? (
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -316,6 +364,9 @@ export default function CandidatesPage() {
                 >
                   Previous
                 </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {page} of {meta.total_pages}
+                </span>
                 <Button
                   variant="outline"
                   size="sm"
@@ -325,8 +376,8 @@ export default function CandidatesPage() {
                   Next
                 </Button>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </CardContent>
       </Card>
     </ModulePage>
