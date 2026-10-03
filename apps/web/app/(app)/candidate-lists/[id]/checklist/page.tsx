@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { ArrowLeft01Icon, PrinterIcon } from "@hugeicons/core-free-icons"
+import { ArrowLeft01Icon, Download01Icon } from "@hugeicons/core-free-icons"
 
-import { api, errorMessage } from "@/lib/api"
+import { api } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 import { P } from "@/lib/permissions"
 import { RequirePermission } from "@/components/guards"
-import { paged } from "@/lib/helpers"
 import { Button } from "@workspace/ui/components/button"
 import {
   Select,
@@ -21,69 +21,80 @@ import {
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
 const ALL = "__all__"
-
-interface ListCandidate {
-  id: string
-  full_name: string
-  candidate_number: string
-  school_name: string
-  school: string
-}
-
-interface ListInfo {
-  name: string
-  cohort: string
-  candidate_count: number
-}
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1"
+).replace(/\/+$/, "")
 
 export default function ChecklistPage() {
   const params = useParams<{ id: string }>()
-  const [list, setList] = useState<ListInfo | null>(null)
-  const [rows, setRows] = useState<ListCandidate[] | null>(null)
+  const { schools } = useAuth()
   const [schoolFilter, setSchoolFilter] = useState(ALL)
+  const [listName, setListName] = useState("")
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    try {
-      const [l, c] = await Promise.all([
-        api.get(`/candidate-lists/${params.id}/`),
-        api.get(`/candidate-lists/${params.id}/candidates/?page_size=500`),
-      ])
-      setList(l.data as ListInfo)
-      setRows(paged<ListCandidate>(c.data))
-    } catch (err) {
-      setError(errorMessage(err))
-    }
-  }, [params.id])
+  const schoolId = schoolFilter === ALL ? "" : schoolFilter
 
   useEffect(() => {
-    void load()
-  }, [load])
+    api
+      .get(`/candidate-lists/${params.id}/`)
+      .then((r) => setListName((r.data as { name?: string }).name ?? ""))
+      .catch(() => undefined)
+  }, [params.id])
 
-  const schools = useMemo(() => {
-    const set = new Map<string, string>()
-    for (const r of rows ?? []) set.set(r.school, r.school_name)
-    return [...set.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-  }, [rows])
+  const loadPdf = useCallback(async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const qs = schoolId ? `?school_id=${schoolId}` : ""
+      const res = await fetch(
+        `${API_BASE}/candidate-lists/${params.id}/checklist-pdf/${qs}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("emas_access")}`,
+          },
+        }
+      )
+      if (!res.ok) throw new Error(`${res.status}`)
+      const blob = await res.blob()
+      setPdfUrl((old) => {
+        if (old) URL.revokeObjectURL(old)
+        return URL.createObjectURL(blob)
+      })
+    } catch {
+      setError("Could not generate the checklist preview.")
+      setPdfUrl(null)
+    } finally {
+      setBusy(false)
+    }
+  }, [params.id, schoolId])
 
-  const filtered = useMemo(
-    () =>
-      (rows ?? [])
-        .filter((r) => schoolFilter === ALL || r.school === schoolFilter)
-        .sort((a, b) => a.candidate_number.localeCompare(b.candidate_number)),
-    [rows, schoolFilter]
+  useEffect(() => {
+    const t = setTimeout(() => void loadPdf(), 300)
+    return () => clearTimeout(t)
+  }, [loadPdf])
+
+  const schoolItems = useMemo(
+    () => [
+      { value: ALL, label: "All organizations" },
+      ...schools.map((s) => ({ value: s.school_id, label: s.school_name })),
+    ],
+    [schools]
   )
 
-  const shownSchools = useMemo(
-    () => [...new Set(filtered.map((r) => r.school_name))].sort(),
-    [filtered]
-  )
+  async function download() {
+    if (!pdfUrl) return
+    const a = document.createElement("a")
+    a.href = pdfUrl
+    a.download = `${listName || "checklist"}.pdf`
+    a.click()
+  }
 
   return (
     <RequirePermission permission={P.candidatesView}>
-      <div className="flex flex-col gap-4 print:gap-0">
-        {/* Controls — hidden when printing */}
-        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
@@ -96,101 +107,55 @@ export default function ChecklistPage() {
             </Button>
             <h1 className="text-lg font-semibold">Verification checklist</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Select
-              value={schoolFilter}
-              onValueChange={(v) => setSchoolFilter(v ?? ALL)}
-              items={[
-                { value: ALL, label: "All organizations" },
-                ...schools.map(([id, name]) => ({ value: id, label: name })),
-              ]}
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="All organizations" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL} label="All organizations">
-                  All organizations
-                </SelectItem>
-                {schools.map(([id, name]) => (
-                  <SelectItem key={id} value={id} label={name}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={() => window.print()}>
-              <HugeiconsIcon icon={PrinterIcon} strokeWidth={2} className="me-2 size-4" />
-              Print
-            </Button>
-          </div>
+          <Button onClick={download} disabled={busy || !pdfUrl}>
+            <HugeiconsIcon icon={Download01Icon} strokeWidth={2} className="me-2 size-4" />
+            Download PDF
+          </Button>
         </div>
 
-        {error ? <p className="text-sm text-destructive print:hidden">{error}</p> : null}
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3">
+          <Select
+            value={schoolFilter}
+            onValueChange={(v) => setSchoolFilter(v ?? ALL)}
+            items={schoolItems}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="All organizations" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL} label="All organizations">
+                All organizations
+              </SelectItem>
+              {schools.map((s) => (
+                <SelectItem key={s.school_id} value={s.school_id} label={s.school_name}>
+                  {s.school_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="ms-auto text-xs text-muted-foreground">
+            {busy ? "Updating…" : "Preview up to date"}
+          </span>
+        </div>
 
-        {/* Printable sheet */}
-        <div className="rounded-lg border bg-white p-8 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
-          {/* Masthead */}
-          <div className="mb-4 text-center">
-            <p className="text-[11px] font-bold uppercase tracking-wide">
-              The Prime Minister&apos;s Office
-            </p>
-            <p className="text-[11px] font-bold uppercase tracking-wide">
-              Regional Administration and Local Government
-            </p>
-            <p className="mt-1.5 text-sm font-bold uppercase">
-              {shownSchools.length === 1
-                ? shownSchools[0]
-                : shownSchools.join(" &amp; ").replace(/&amp;/g, "&")}
-            </p>
-            <p className="mt-1 text-base font-bold uppercase">
-              {list?.name ?? "…"} — Candidate Verification Checklist
-            </p>
-            <p className="text-xs">
-              Cohort {list?.cohort ?? ""} · {filtered.length} candidates ·{" "}
-              {new Date().toLocaleDateString("en-GB", {
-                month: "long",
-                year: "numeric",
-              }).toUpperCase()}
-            </p>
-            <div className="mt-2 border-t-2 border-black" />
-            <div className="mt-0.5 border-t border-black" />
-          </div>
-
-          {!rows ? (
-            <Skeleton className="h-64 w-full" />
+        {/* PDF */}
+        <div className="min-h-0 flex-1">
+          {error ? (
+            <p className="text-sm text-destructive">{error}</p>
+          ) : pdfUrl ? (
+            <object
+              data={pdfUrl}
+              type="application/pdf"
+              className="h-[calc(100vh-15rem)] w-full rounded-md border bg-white"
+            >
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                Your browser cannot display the PDF inline — use Download instead.
+              </p>
+            </object>
           ) : (
-            <table className="w-full border-collapse text-[11px]">
-              <thead>
-                <tr className="[&>th]:border [&>th]:border-slate-500 [&>th]:px-2 [&>th]:py-1.5 [&>th]:text-left [&>th]:font-bold">
-                  <th className="w-8">#</th>
-                  <th className="w-36">Candidate no.</th>
-                  <th>Full name</th>
-                  <th className="w-48">School</th>
-                  <th className="w-28">Signature</th>
-                  <th className="w-24">Marks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r, i) => (
-                  <tr key={r.id} className="[&>td]:border [&>td]:border-slate-400 [&>td]:px-2 [&>td]:py-2.5">
-                    <td className="text-center">{i + 1}</td>
-                    <td className="font-mono">{r.candidate_number}</td>
-                    <td className="font-medium">{r.full_name}</td>
-                    <td>{r.school_name}</td>
-                    <td />
-                    <td />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Skeleton className="h-[calc(100vh-15rem)] w-full rounded-md" />
           )}
-
-          <div className="mt-6 flex justify-between text-[10px] uppercase text-slate-600">
-            <span>Invigilator: ____________________</span>
-            <span>Checked by: ____________________</span>
-            <span>Date: ____ / ____ / ________</span>
-          </div>
         </div>
       </div>
     </RequirePermission>
