@@ -163,6 +163,9 @@ export default function ResultsPreviewPage() {
               { value: "10", label: "Top 10" },
               { value: "20", label: "Top 20" },
               { value: "50", label: "Top 50" },
+              { value: "-10", label: "Bottom 10" },
+              { value: "-20", label: "Bottom 20" },
+              { value: "-50", label: "Bottom 50" },
             ]}
           >
             <SelectTrigger className="w-32">
@@ -173,6 +176,9 @@ export default function ResultsPreviewPage() {
               <SelectItem value="10" label="Top 10">Top 10</SelectItem>
               <SelectItem value="20" label="Top 20">Top 20</SelectItem>
               <SelectItem value="50" label="Top 50">Top 50</SelectItem>
+              <SelectItem value="-10" label="Bottom 10">Bottom 10</SelectItem>
+              <SelectItem value="-20" label="Bottom 20">Bottom 20</SelectItem>
+              <SelectItem value="-50" label="Bottom 50">Bottom 50</SelectItem>
             </SelectContent>
           </Select>
           <Select
