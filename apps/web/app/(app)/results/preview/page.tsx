@@ -32,6 +32,7 @@ export default function ResultsPreviewPage() {
   const [exams, setExams] = useState<ExamRow[] | null>(null)
   const [examId, setExamId] = useState(params.get("exam") ?? "")
   const [schoolFilter, setSchoolFilter] = useState(ALL)
+  const [top, setTop] = useState("")
   const [order, setOrder] = useState("position_asc")
   const [search, setSearch] = useState("")
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
@@ -59,6 +60,7 @@ export default function ResultsPreviewPage() {
       const qs =
         `?examination=${examId}&order=${order}` +
         (schoolId ? `&school_id=${schoolId}` : "") +
+        (top ? `&top=${top}` : "") +
         (search ? `&q=${encodeURIComponent(search)}` : "")
       const res = await fetch(`${API_BASE}/results/examination/pdf/${qs}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("emas_access")}` },
@@ -75,7 +77,7 @@ export default function ResultsPreviewPage() {
     } finally {
       setBusy(false)
     }
-  }, [examId, order, schoolId, search])
+  }, [examId, order, schoolId, search, top])
 
   useEffect(() => {
     const t = setTimeout(() => void loadPdf(), 300)
@@ -151,6 +153,26 @@ export default function ResultsPreviewPage() {
                   {s.school_name}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={top || "all"}
+            onValueChange={(v) => setTop(v === "all" ? "" : (v ?? ""))}
+            items={[
+              { value: "all", label: "Everyone" },
+              { value: "10", label: "Top 10" },
+              { value: "20", label: "Top 20" },
+              { value: "50", label: "Top 50" },
+            ]}
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Everyone" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" label="Everyone">Everyone</SelectItem>
+              <SelectItem value="10" label="Top 10">Top 10</SelectItem>
+              <SelectItem value="20" label="Top 20">Top 20</SelectItem>
+              <SelectItem value="50" label="Top 50">Top 50</SelectItem>
             </SelectContent>
           </Select>
           <Select
